@@ -1,0 +1,220 @@
+<div class="stock-management-wrapper">
+  <div class="container-fluid">
+    <!-- Header Section -->
+    <div class="header-section">
+      <h1><i class="fas fa-warehouse"></i> Professional Stock Management</h1>
+      <p>Manage your inventory with precision and efficiency</p>
+    </div>
+
+    <!-- Alert Messages -->
+    <div class="row" *ngIf="message">
+      <div class="col-12">
+        <div class="alert-message" 
+             [ngClass]="{'alert-success': messageType === 'success', 'alert-error': messageType === 'error'}">
+          <div class="alert-content">
+            <i class="fas" [ngClass]="{'fa-check-circle': messageType === 'success', 'fa-exclamation-circle': messageType === 'error'}"></i>
+            <span>{{ message }}</span>
+          </div>
+          <button class="alert-close" (click)="message = ''">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content Layout -->
+    <div class="row main-layout">
+      <!-- Left Column: Stock Management Controls -->
+      <div class="col-lg-8 col-md-12">
+        <div class="management-panel">
+          <!-- Search Section -->
+          <div class="search-card">
+            <div class="card-header">
+              <h3><i class="fas fa-search"></i> Product Search</h3>
+            </div>
+            <div class="card-body">
+              <div class="search-form">
+                <label for="productId" class="form-label">Product ID</label>
+                <div class="input-group">
+                  <input 
+                    type="number" 
+                    id="productId" 
+                    [(ngModel)]="productId" 
+                    placeholder="Enter Product ID..."
+                    class="form-control"
+                    (keyup.enter)="searchStock()"
+                  >
+                  <button 
+                    (click)="searchStock()" 
+                    [disabled]="loading || !productId"
+                    class="btn btn-primary"
+                  >
+                    <span *ngIf="loading" class="spinner-border spinner-border-sm me-2"></span>
+                    <i class="fas fa-search me-1" *ngIf="!loading"></i>
+                    {{ loading ? 'Searching...' : 'Search' }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Product Information -->
+          <div *ngIf="currentStock" class="product-info-card">
+            <div class="card-header">
+              <h3><i class="fas fa-box"></i> Product Details</h3>
+            </div>
+            <div class="card-body">
+              <div class="product-details">
+                <div class="detail-item">
+                  <span class="label">Product Name</span>
+                  <span class="value">{{ currentStock.name }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="label">Product ID</span>
+                  <span class="value">#{{ currentStock.productID }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="label">Current Stock</span>
+                  <span class="value stock-quantity" 
+                        [ngClass]="{
+                          'stock-good': currentStock.quantity > currentStock.reorderLevel,
+                          'stock-low': currentStock.quantity <= currentStock.reorderLevel && currentStock.quantity > 0,
+                          'stock-critical': currentStock.quantity === 0
+                        }">
+                    {{ currentStock.quantity }} units
+                  </span>
+                </div>
+                <div class="detail-item">
+                  <span class="label">Reorder Level</span>
+                  <span class="value">{{ currentStock.reorderLevel }} units</span>
+                </div>
+                <div class="detail-item">
+                  <span class="label">Status</span>
+                  <span class="value">
+                    <span class="status-badge" 
+                          [ngClass]="{
+                            'status-critical': currentStock.quantity === 0,
+                            'status-warning': currentStock.quantity <= currentStock.reorderLevel && currentStock.quantity > 0,
+                            'status-good': currentStock.quantity > currentStock.reorderLevel
+                          }">
+                      <span *ngIf="currentStock.quantity === 0">Out of Stock</span>
+                      <span *ngIf="currentStock.quantity > 0 && currentStock.quantity <= currentStock.reorderLevel">Low Stock</span>
+                      <span *ngIf="currentStock.quantity > currentStock.reorderLevel">In Stock</span>
+                    </span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stock Control Panel -->
+          <div *ngIf="currentStock" class="control-panel">
+            <div class="card-header">
+              <h3><i class="fas fa-sliders-h"></i> Stock Control</h3>
+            </div>
+            <div class="card-body">
+              <div class="quantity-input-section">
+                <label for="amount" class="form-label">Quantity</label>
+                <input 
+                  type="number" 
+                  id="amount" 
+                  [(ngModel)]="amount" 
+                  placeholder="Enter quantity..."
+                  class="form-control"
+                  min="1"
+                >
+              </div>
+              
+              <div class="control-buttons">
+                <button 
+                  (click)="increaseStock()" 
+                  [disabled]="loading || !amount || amount <= 0"
+                  class="btn btn-increase"
+                >
+                  <span *ngIf="loading" class="spinner-border spinner-border-sm me-2"></span>
+                  <i class="fas fa-plus me-2" *ngIf="!loading"></i>
+                  Increase Stock
+                </button>
+                <button 
+                  (click)="decreaseStock()" 
+                  [disabled]="loading || !amount || amount <= 0 || currentStock.quantity < amount"
+                  class="btn btn-decrease"
+                >
+                  <span *ngIf="loading" class="spinner-border spinner-border-sm me-2"></span>
+                  <i class="fas fa-minus me-2" *ngIf="!loading"></i>
+                  Decrease Stock
+                </button>
+              </div>
+              
+              <div *ngIf="currentStock.quantity < amount && amount > 0" class="warning-message">
+                <i class="fas fa-exclamation-triangle"></i>
+                Cannot decrease by {{ amount }} units. Only {{ currentStock.quantity }} units available.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Low Stock Alerts -->
+      <div class="col-lg-4 col-md-12">
+        <div class="alerts-panel sticky-alerts">
+          <div class="card-header">
+            <h3><i class="fas fa-exclamation-triangle"></i> Low Stock Alerts</h3>
+            <button (click)="loadLowStockItems()" class="btn btn-refresh" [disabled]="loading">
+              <i class="fas fa-sync-alt" [class.fa-spin]="loading"></i>
+            </button>
+          </div>
+          
+          <div class="card-body">
+            <!-- No Low Stock Items -->
+            <div *ngIf="lowStockItems.length === 0" class="no-alerts">
+              <div class="no-alerts-icon">
+                <i class="fas fa-check-circle"></i>
+              </div>
+              <h4>All Good!</h4>
+              <p>No low stock items found</p>
+            </div>
+            
+            <!-- Low Stock Items List -->
+            <div *ngIf="lowStockItems.length > 0" class="alerts-list">
+              <div 
+                *ngFor="let item of lowStockItems; trackBy: trackByProductId" 
+                class="alert-item"
+                (click)="selectProduct(item.productID)"
+              >
+                <div class="alert-header">
+                  <h5>{{ item.name }}</h5>
+                  <span class="product-id">#{{ item.productID }}</span>
+                </div>
+                
+                <div class="alert-details">
+                  <div class="stock-info">
+                    <div class="current-stock">
+                      <span class="value">{{ item.quantity }}</span>
+                      <span class="label">Current</span>
+                    </div>
+                    <div class="reorder-level">
+                      <span class="value">{{ item.reorderLevel }}</span>
+                      <span class="label">Reorder</span>
+                    </div>
+                  </div>
+                  
+                  <div class="alert-status">
+                    <span class="status-badge" 
+                          [ngClass]="{
+                            'status-critical': item.quantity === 0,
+                            'status-warning': item.quantity > 0 && item.quantity <= item.reorderLevel
+                          }">
+                      <i class="fas" [ngClass]="{'fa-times-circle': item.quantity === 0, 'fa-exclamation-triangle': item.quantity > 0}"></i>
+                      {{ item.quantity === 0 ? 'Out of Stock' : 'Low Stock' }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
